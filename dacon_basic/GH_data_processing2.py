@@ -3,15 +3,17 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import PIL
 import os
-
+import PIL
 import torch
 import torch.nn.functional as F
+import time
+import random
+
 from torch import nn, optim, cuda
 from torch.utils import data
 from torchvision import datasets, transforms
-import time
+
 
 device = 'cuda' if cuda.is_available() else 'cpu'
 path = "/home/inhamath/inhamath/Dacon/train"
@@ -22,41 +24,61 @@ path = "/home/inhamath/inhamath/Dacon/train"
 # ## 데이터 불러오기
 # 
 # data_img2 : 좌우반전  
-# data_img3 : 상하반전  
-# data_img4 : 상하,좌우반전
+
 
 labels = os.listdir(path)
 if ".DS_Store" in labels: labels.remove(".DS_Store")
 label_data_dict = dict(zip(labels,range(len(labels))))
 
 train_img,train_label = [],[]
+test_img,test_label = [],[]
 
 for label in labels:
     data_list = os.listdir(f"{path}/{label}")
     if ".DS_Store" in data_list: data_list.remove(".DS_Store")
 
-    for data in data_list:
-        data_img  = np.array(PIL.Image.open(f"{path}/{label}/{data}"))
-        data_img  = np.moveaxis(data_img, source = 2,destination = 0)
-        train_img.append(data_img)
+    for data in data_list[:4500]:
+        data_img = PIL.Image.open(f"{path}/{label}/{data}")
+        
+        data_img1  = np.array(data_img)
+        data_img1  = np.moveaxis(data_img1, source = 2,destination = 0)
+        train_img.append(data_img1)
         
         # 좌우 반전
-        data_img2 = data_img[:,:,::-1]
+        data_img2 = data_img1[:,:,::-1]
         train_img.append(data_img2)
         
-        """
-        #상하 반전
-        data_img3 = data_img[:,::-1,:]
-        train_img.append(data_img3)
+        # 회전
+        rotate_img = data_img.rotate(random.randint(-60, 60))
+        rotate_img = np.array(rotate_img)
+        rotate_img = np.moveaxis(rotate_img, source = 2,destination = 0)
+        train_img.append(rotate_img)
         
-        #좌우,상하 반전
-        data_img4 = data_img[:,::-1,::-1]
-        train_img.append(data_img4)
-        """
-
-        train_label += [label_data_dict[label]] * 2
+        
+        
+        train_label += [label_data_dict[label]] * 3
+        
+    for data in data_list[4500:]:
+        data_img = PIL.Image.open(f"{path}/{label}/{data}")
+        
+        data_img1  = np.array(data_img)
+        data_img1  = np.moveaxis(data_img1, source = 2,destination = 0)
+        test_img.append(data_img1)
+        
+        # 좌우 반전
+        data_img2 = data_img1[:,:,::-1]
+        test_img.append(data_img2)
+        
+        # 회전
+        rotate_img = data_img.rotate(random.randint(-60, 60))
+        rotate_img = np.array(rotate_img)
+        rotate_img = np.moveaxis(rotate_img, source = 2,destination = 0)
+        test_img.append(rotate_img)
+        
+        test_label += [label_data_dict[label]] * 3
     
 train_data_dict = {"train_img" : np.array(train_img), "train_label" : np.array(train_label)}
+test_data_dict = {"test_img" : np.array(test_img), "test_label" : np.array(test_label)}
 
 # ## 데이터 셋 만들기
 class GH_Dataset(torch.utils.data.Dataset): 
@@ -73,10 +95,11 @@ class GH_Dataset(torch.utils.data.Dataset):
         return x, y
 
 
-batch_size = 512
+batch_size = 256
 
-dataset = GH_Dataset(train_data_dict["train_img"],train_data_dict["train_label"])
-train_dataset,test_dataset = torch.utils.data.random_split(dataset,[90000,10000])
+
+train_dataset = GH_Dataset(train_data_dict["train_img"],train_data_dict["train_label"])
+test_dataset = GH_Dataset(test_data_dict["test_img"],test_data_dict["test_label"])
 
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,batch_size=batch_size)
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,batch_size=batch_size)
